@@ -292,13 +292,23 @@
               (recur)))))))
 
 (defmethod do-copy [InputStream Writer] [#^InputStream input #^Writer output opts]
+  ;; WRONG! if the buffer boundry falls in the middle of a multibyte character, we will get garbled results.
+  #_
   (let [#^"[B" buffer (make-array Byte/TYPE (buffer-size opts))]
     (loop []
       (let [size (.read input buffer)]
         (when (pos? size)
           (let [chars (.toCharArray (String. buffer 0 size (encoding opts)))]
             (do (.write output chars)
-                (recur))))))))
+                (recur)))))))
+  ;; here we decode the characters before stuffing them into the buffer
+  (let [#^"[C" buffer (make-array Character/TYPE (buffer-size opts))
+        in (InputStreamReader. input (encoding opts))]
+    (loop []
+      (let [size (.read in buffer 0 (alength buffer))]
+        (if (pos? size)
+          (do (.write output buffer 0 size)
+              (recur)))))))
 
 (defmethod do-copy [InputStream File] [#^InputStream input #^File output opts]
   (with-open [out (FileOutputStream. output)]
